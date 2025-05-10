@@ -1,0 +1,6 @@
+google-adk
+google-genai
+python-dotenv
+asyncio
+uvicorn
+fastapi

@@ -1,0 +1,38 @@
+services:
+    browser:
+      image: nishithp/spectra-browser
+      build: ./browser
+      restart: unless-stopped
+      ports: 
+        - "7900:7900" # noVNC Interface
+        - "8921:8921" # Playwright MCP Server
+      environment:
+        - ENABLE_RECORDING=true
+        - RTMP_URL=rtmp://rtmp-server/stream/browser-session-recording
+      depends_on:
+        - rtmp-server
+
+    rtmp-server: 
+      image: nishithp/spectra-rtmp-server
+      build: ./rtmp-server
+      restart: unless-stopped
+      ports:
+        - "1935:1935" # RTMP Port
+        - "8080:80" # Web Interface 
+      volumes: 
+       - ./rtmp-server/credentials.json:/app/credentials.json
+
+    agent: 
+      image: nishithp/spectra-agent
+      build: ./agents
+      restart: unless-stopped
+      ports:
+        - "8000:8000" # Web Interface
+      env_file: 
+        - "./agents/.env"
+      depends_on:
+        - browser
+    
+      
+
+

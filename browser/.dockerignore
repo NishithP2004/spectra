@@ -3,3 +3,6 @@ playwright-mcp/tests
 playwright-mcp/utils
 playwright-mcp/.github
 playwright-mcp/.git
+pyautogui-mcp/.git
+pyautogui-mcp/__pycache__
+pyautogui-mcp/.gitignore

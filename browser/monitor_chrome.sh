@@ -1,9 +1,11 @@
 #!/bin/bash
 
 NODE_SCRIPT_PATH="/app/playwright-mcp/cli.js"
+PYTHON_SCRIPT_PATH="/app/pyautogui-mcp/server.py"
 
 chrome_pid=""
 node_mcp_server_pid=""
+python_server_pid=""
 current_ws_url=""
 
 cleanup_processes() {
@@ -15,6 +17,12 @@ cleanup_processes() {
         wait "$node_mcp_server_pid" 2>/dev/null || true
     fi
 
+    if [ -n "$python_server_pid" ] && kill -0 "$python_server_pid" 2>/dev/null; then
+        echo "Killing Python Server (PID $python_server_pid)..."
+        kill "$python_server_pid"
+        wait "$python_server_pid" 2>/dev/null || true
+    fi
+
     if [ -n "$chrome_pid" ] && kill -0 "$chrome_pid" 2>/dev/null; then
         echo "Killing Chrome (PID $chrome_pid)..."
         kill "$chrome_pid"
@@ -23,6 +31,7 @@ cleanup_processes() {
 
     chrome_pid=""
     node_mcp_server_pid=""
+    python_server_pid=""
     current_ws_url=""
 }
 
@@ -88,45 +97,16 @@ start_node_process() {
     sleep 1
 }
 
-monitor_processes() {
-    echo "Monitoring processes and WebSocket URL..."
-    while true; do
-        sleep 2
-
-        # Check Chrome
-        if [ -n "$chrome_pid" ] && ! kill -0 "$chrome_pid" 2>/dev/null; then
-            echo "[-] Chrome process (PID $chrome_pid) exited! Restarting..."
-            return 1
-        fi
-
-        # Check Node.js
-        if [ -n "$node_mcp_server_pid" ] && ! kill -0 "$node_mcp_server_pid" 2>/dev/null; then
-            echo "[-] Node.js MCP Server (PID $node_mcp_server_pid) exited! Restarting..."
-            return 1
-        fi
-
-        # Probe for updated CDP URL
-        new_ws_url=$(get_cdp_url)
-
-        if [ -z "$new_ws_url" ]; then
-            echo "[!] CDP WebSocket URL not available. Skipping check..."
-            continue
-        fi
-
-        if [ "$new_ws_url" != "$current_ws_url" ]; then
-            echo "[⚠] CDP WebSocket URL has changed!"
-            echo "Old: $current_ws_url"
-            echo "New: $new_ws_url"
-
-            if [ -n "$node_mcp_server_pid" ] && kill -0 "$node_mcp_server_pid" 2>/dev/null; then
-                echo "Restarting Node.js MCP server..."
-                kill "$node_mcp_server_pid"
-                wait "$node_mcp_server_pid" 2>/dev/null || true
-            fi
-
-            start_node_process "$new_ws_url"
-        fi
-    done
+start_python_process() {
+    if [ -f "$PYTHON_SCRIPT_PATH" ]; then
+        echo "Starting Python server..."
+        python3 "$PYTHON_SCRIPT_PATH" &
+        python_server_pid=$!
+        echo "Python server started with PID $python_server_pid"
+        sleep 1
+    else
+        echo "Python server script not found at $PYTHON_SCRIPT_PATH. Skipping Python server startup."
+    fi
 }
 
 start_pulseaudio() {
@@ -155,7 +135,60 @@ start_streaming() {
     echo "FFmpeg started with PID $ffmpeg_pid"
 }
 
+monitor_processes() {
+    echo "Monitoring processes and WebSocket URL..."
+    while true; do
+        sleep 2
+
+        # Check Chrome
+        if [ -n "$chrome_pid" ] && ! kill -0 "$chrome_pid" 2>/dev/null; then
+            echo "[-] Chrome process (PID $chrome_pid) exited! Restarting..."
+            return 1
+        fi
+
+        # Check Node.js
+        if [ -n "$node_mcp_server_pid" ] && ! kill -0 "$node_mcp_server_pid" 2>/dev/null; then
+            echo "[-] Node.js MCP Server (PID $node_mcp_server_pid) exited! Restarting..."
+            return 1
+        fi
+
+        # Check Python Server
+        if [ -n "$python_server_pid" ] && ! kill -0 "$python_server_pid" 2>/dev/null; then
+            echo "[-] Python Server (PID $python_server_pid) exited! Restarting..."
+            start_python_process
+        fi
+
+        # Probe for updated CDP URL
+        new_ws_url=$(get_cdp_url)
+
+        if [ -z "$new_ws_url" ]; then
+            echo "[!] CDP WebSocket URL not available. Skipping check..."
+            continue
+        fi
+
+        if [ "$new_ws_url" != "$current_ws_url" ]; then
+            echo "[⚠] CDP WebSocket URL has changed!"
+            echo "Old: $current_ws_url"
+            echo "New: $new_ws_url"
+
+            if [ -n "$node_mcp_server_pid" ] && kill -0 "$node_mcp_server_pid" 2>/dev/null; then
+                echo "Restarting Node.js MCP server..."
+                kill "$node_mcp_server_pid"
+                wait "$node_mcp_server_pid" 2>/dev/null || true
+            fi
+
+            start_node_process "$new_ws_url"
+        fi
+    done
+}
+
 main() {
+    Xvfb :99 -screen 0 1920x1080x24 &
+    export DISPLAY=:99
+    x11vnc -display :99 -forever -nopw -shared &
+    
+    sleep 2
+    
     if [ "$ENABLE_RECORDING" = "true" ]; then
         start_pulseaudio
         start_streaming
@@ -174,6 +207,7 @@ main() {
         fi
 
         start_node_process "$ws_url"
+        # start_python_process
         monitor_processes
 
         echo "Restarting cycle in 2 seconds..."

@@ -2,7 +2,7 @@ FROM selenium/standalone-chrome
 
 USER root
 
-EXPOSE 7900 4444 9222 8921
+EXPOSE 7900 8921 8922
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -17,7 +17,21 @@ RUN apt-get update && \
         pavucontrol \
         alsa-utils \
         sox \
-        libsox-fmt-all && \
+        libsox-fmt-all \
+        python3 \
+        python3-pip \
+        python3-tk \
+        python3-dev \
+        scrot \
+        x11-utils \
+        x11-xserver-utils \
+        dbus-x11 \
+        xserver-xephyr \
+        xvfb \
+        libxrender1 \
+        libxext6 \
+        libsm6 \
+        wmctrl && \
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     npm install -g typescript && \
@@ -30,19 +44,27 @@ RUN dos2unix /usr/bin/monitor_chrome.sh && \
 
 WORKDIR /app
 RUN mkdir -p /app/playwright-mcp && \
+    mkdir -p /app/pyautogui-mcp && \
     chown -R seluser:seluser /app
 
 COPY playwright-mcp/package*.json /app/playwright-mcp/
+
 WORKDIR /app/playwright-mcp/
 RUN npm ci
 
 WORKDIR /app
-COPY . /app
+
 RUN chown -R seluser:seluser /app
+COPY pyautogui-mcp/requirements.txt /app/pyautogui-mcp/
+
+WORKDIR /app/pyautogui-mcp
+
+RUN pip install --no-cache-dir -r requirements.txt --break-system-packages
+COPY . /app
 
 WORKDIR /app/playwright-mcp/
 RUN npm run build
 
 USER seluser
 
-CMD ["bash", "-c", "/usr/bin/monitor_chrome.sh & x11vnc -display :99 -nopw -forever -shared & exec /opt/bin/entry_point.sh"]
+CMD ["bash", "-c", "/usr/bin/monitor_chrome.sh & exec /opt/bin/entry_point.sh"]

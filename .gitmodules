@@ -1,3 +1,9 @@
 [submodule "browser/playwright-mcp"]
 	path = browser/playwright-mcp
 	url = https://github.com/microsoft/playwright-mcp.git
+[submodule "tools/cyberchef/cyberchef-api-mcp-server"]
+	path = tools/cyberchef/cyberchef-api-mcp-server
+	url = https://github.com/slouchd/cyberchef-api-mcp-server.git
+[submodule "tools/cyberchef/CyberChef-server"]
+	path = tools/cyberchef/CyberChef-server
+	url = https://github.com/gchq/CyberChef-server.git

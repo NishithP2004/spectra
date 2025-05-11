@@ -6,8 +6,9 @@ services:
       ports: 
         - "7900:7900" # noVNC Interface
         - "8921:8921" # Playwright MCP Server
+        - "8922:8922" # pyautogui MCP Server
       environment:
-        - ENABLE_RECORDING=true
+        - ENABLE_RECORDING=false
         - RTMP_URL=rtmp://rtmp-server/stream/browser-session-recording
       depends_on:
         - rtmp-server
@@ -32,7 +33,31 @@ services:
         - "./agents/.env"
       depends_on:
         - browser
+        - pentools
+        - cyberchef-mcp
+
+    pentools:
+      image: nishithp/spectra-pentools
+      build: ./tools/pentools
+      restart: unless-stopped
+      ports:
+        - "5000:5000" # API Server
+        - "5001:5001" # MCP Server
     
-      
-
-
+    cyberchef-server:
+      image: nishithp/spectra-cyberchef-server
+      build: ./tools/cyberchef/CyberChef-server
+      restart: unless-stopped
+      ports: 
+        - "3000:3000"
+    
+    cyberchef-mcp:
+      image: nishithp/spectra-cyberchef-mcp
+      build: ./tools/cyberchef/cyberchef-api-mcp-server
+      restart: unless-stopped
+      ports:
+        - "3001:3000"
+      environment:
+        - CYBERCHEF_API_URL=http://cyberchef-server:3000/
+      depends_on:
+        - cyberchef-server

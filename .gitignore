@@ -3,6 +3,4 @@ node_modules
 .venv
 __pycache__
 credentials.json
-pentools/index.js
 agents/sessions.db
-pentools

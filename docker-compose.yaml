@@ -12,6 +12,8 @@ services:
         - RTMP_URL=rtmp://rtmp-server/stream/browser-session-recording
       depends_on:
         - rtmp-server
+      networks:
+        - spectra-net
 
     rtmp-server: 
       image: nishithp/spectra-rtmp-server
@@ -22,6 +24,8 @@ services:
         - "8080:80" # Web Interface 
       volumes: 
        - ./rtmp-server/credentials.json:/app/credentials.json
+      networks:
+        - spectra-net
 
     agent: 
       image: nishithp/spectra-agent
@@ -35,6 +39,8 @@ services:
         - browser
         - pentools
         - cyberchef-mcp
+      networks:
+        - spectra-net
 
     pentools:
       image: nishithp/spectra-pentools
@@ -43,6 +49,8 @@ services:
       ports:
         - "5000:5000" # API Server
         - "5001:5001" # MCP Server
+      networks:
+        - spectra-net
     
     cyberchef-server:
       image: nishithp/spectra-cyberchef-server
@@ -50,6 +58,8 @@ services:
       restart: unless-stopped
       ports: 
         - "3000:3000"
+      networks:
+        - spectra-net
     
     cyberchef-mcp:
       image: nishithp/spectra-cyberchef-mcp
@@ -61,3 +71,20 @@ services:
         - CYBERCHEF_API_URL=http://cyberchef-server:3000/
       depends_on:
         - cyberchef-server
+      networks:
+        - spectra-net
+
+    router:
+      image: nishithp/spectra-router
+      build: ./router
+      restart: unless-stopped
+      ports:
+        - "80:80"
+      env_file: 
+        - "./router/.env"
+      networks:
+        - spectra-net
+
+networks:
+  spectra-net: 
+    drivers: bridge

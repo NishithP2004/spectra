@@ -1,0 +1,64 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: session-pod-{{UID}}
+  namespace: user-{{UID}}
+  labels:
+    app: spectra-session
+spec:
+  containers:
+    - name: browser
+      image: nishithp/spectra-browser
+      ports:
+        - containerPort: 7900
+        - containerPort: 8921
+        - containerPort: 8922
+      env:
+        - name: ENABLE_RECORDING
+          value: "true"
+        - name: RTMP_URL
+          value: rtmp://localhost:1935/stream/browser-session-recording
+
+    - name: rtmp-server
+      image: nishithp/spectra-rtmp-server
+      ports:
+        - containerPort: 1935
+        - containerPort: 8080
+      volumeMounts:
+        - name: rtmp-credentials
+          mountPath: /app/credentials.json
+          subPath: credentials.json
+
+    - name: agent
+      image: nishithp/spectra-agent
+      ports:
+        - containerPort: 8000
+      env:
+        - name: PENTOOLS_URL
+          value: http://localhost:5000
+        - name: CYBERCHEF_MCP_URL
+          value: http://localhost:3001
+
+    - name: pentools
+      image: nishithp/spectra-pentools
+      ports:
+        - containerPort: 5000
+        - containerPort: 5001
+
+    - name: cyberchef-server
+      image: nishithp/spectra-cyberchef-server
+      ports:
+        - containerPort: 3000
+
+    - name: cyberchef-mcp
+      image: nishithp/spectra-cyberchef-mcp
+      ports:
+        - containerPort: 3001
+      env:
+        - name: CYBERCHEF_API_URL
+          value: http://localhost:3000/
+
+  volumes:
+    - name: rtmp-credentials
+      configMap:
+        name: rtmp-config

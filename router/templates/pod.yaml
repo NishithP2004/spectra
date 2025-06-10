@@ -9,6 +9,7 @@ spec:
   containers:
     - name: browser
       image: nishithp/spectra-browser
+      imagePullPolicy: IfNotPresent
       ports:
         - containerPort: 7900
         - containerPort: 8921
@@ -21,37 +22,55 @@ spec:
 
     - name: rtmp-server
       image: nishithp/spectra-rtmp-server
+      imagePullPolicy: IfNotPresent
       ports:
         - containerPort: 1935
         - containerPort: 8080
       volumeMounts:
-        - name: rtmp-credentials
+        - name: spectra-credentials
           mountPath: /app/credentials.json
           subPath: credentials.json
 
     - name: agent
       image: nishithp/spectra-agent
+      imagePullPolicy: IfNotPresent
       ports:
         - containerPort: 8000
       env:
-        - name: PENTOOLS_URL
-          value: http://localhost:5000
-        - name: CYBERCHEF_MCP_URL
-          value: http://localhost:3001
+        - name: PORT
+          value: "8000"
+        - name: GOOGLE_GENAI_USE_VERTEXAI
+          value: "FALSE"
+        - name: SERVE_WEB_INTERFACE
+          value: "true"
+        - name: MCP_TOOLS_URL_BROWSER
+          value: http://localhost:8921/sse
+        - name: MCP_TOOLS_URL_PYAUTOGUI
+          value: http://localhost:8922/sse
+        - name: MCP_TOOLS_URL_PENTOOLS
+          value: http://localhost:5001/sse
+        - name: MCP_TOOLS_URL_CYBERCHEF
+          value: http://localhost:3001/sse
+      envFrom:
+        - secretRef:
+            name: spectra-env-secret
 
     - name: pentools
       image: nishithp/spectra-pentools
+      imagePullPolicy: IfNotPresent
       ports:
         - containerPort: 5000
         - containerPort: 5001
 
     - name: cyberchef-server
       image: nishithp/spectra-cyberchef-server
+      imagePullPolicy: IfNotPresent
       ports:
         - containerPort: 3000
 
     - name: cyberchef-mcp
       image: nishithp/spectra-cyberchef-mcp
+      imagePullPolicy: IfNotPresent
       ports:
         - containerPort: 3001
       env:
@@ -59,6 +78,6 @@ spec:
           value: http://localhost:3000/
 
   volumes:
-    - name: rtmp-credentials
-      configMap:
-        name: rtmp-config
+    - name: spectra-credentials
+      secret:
+        secretName: spectra-secret

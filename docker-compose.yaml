@@ -2,6 +2,7 @@ services:
     browser:
       image: nishithp/spectra-browser
       build: ./browser
+      platform: linux/amd64
       restart: unless-stopped
       ports: 
         - "7900:7900" # noVNC Interface
@@ -45,9 +46,10 @@ services:
     pentools:
       image: nishithp/spectra-pentools
       build: ./tools/pentools
+      platform: linux/amd64
       restart: unless-stopped
       ports:
-        - "5000:5000" # API Server
+        - "5002:5000" # API Server
         - "5001:5001" # MCP Server
       networks:
         - spectra-net
@@ -74,6 +76,14 @@ services:
       networks:
         - spectra-net
 
+    redis:
+      image: redis:latest
+      restart: unless-stopped
+      ports:
+        - "6379:6379"
+      networks:
+        - spectra-net
+
     router:
       image: nishithp/spectra-router
       build: ./router
@@ -82,9 +92,13 @@ services:
         - "80:80"
       env_file: 
         - "./router/.env"
+      volumes: 
+       - ./router/credentials.json:/app/credentials.json
+      depends_on:
+        - redis
       networks:
         - spectra-net
 
 networks:
   spectra-net: 
-    drivers: bridge
+    driver: bridge

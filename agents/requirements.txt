@@ -4,3 +4,4 @@ python-dotenv
 asyncio
 uvicorn
 fastapi
+litellm

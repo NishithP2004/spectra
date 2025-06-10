@@ -6,14 +6,16 @@ authors = [
     {name = "Nishith P",email = "nishithp11@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
-    "google-adk (>=0.3.0,<0.4.0)",
-    "google-genai (>=1.12.1,<2.0.0)",
+    "google-adk (>=1.1.1,<2.0.0)",
+    "google-genai (>=1.18.0,<2.0.0)",
     "python-dotenv (>=1.1.0,<2.0.0)",
     "asyncio (>=3.4.3,<4.0.0)",
-    "uvicorn (>=0.34.2,<0.35.0)",
-    "fastapi (>=0.115.12,<0.116.0)"
+    "uvicorn (>=0.34.3,<0.35.0)",
+    "fastapi (>=0.115.12,<0.116.0)",
+    "litellm (>=1.72.0,<2.0.0)",
+    "deprecated (>=1.2.18,<2.0.0)"
 ]
 
 

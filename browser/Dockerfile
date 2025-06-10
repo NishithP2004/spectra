@@ -40,7 +40,7 @@ RUN apt-get update && \
 
 COPY monitor_chrome.sh /usr/bin/monitor_chrome.sh
 RUN dos2unix /usr/bin/monitor_chrome.sh && \
-    chmod +x /usr/bin/monitor_chrome.sh
+    chmod 755 /usr/bin/monitor_chrome.sh
 
 WORKDIR /app
 RUN mkdir -p /app/playwright-mcp && \

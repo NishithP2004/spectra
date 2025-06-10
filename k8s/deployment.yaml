@@ -14,14 +14,27 @@ spec:
       labels:
         app: router
     spec:
+      serviceAccountName: router-sa 
       containers:
         - name: router
           image: nishithp/spectra-router:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
           env:
             - name: PORT
               value: "80"
+          envFrom:
+            - secretRef:
+                name: spectra-env-secret
+          volumeMounts:
+            - name: spectra-credentials
+              mountPath: /app/credentials.json
+              subPath: credentials.json
+      volumes:
+        - name: spectra-credentials
+          secret:
+            secretName: spectra-secret
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler

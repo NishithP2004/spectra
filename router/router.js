@@ -275,37 +275,44 @@ app.use('/vnc', async (req, res, next) => {
     })(req, res, next);
 });
 
-app.use('/agent/run_sse', authMiddleware, async (req, res, next) => {
-    const uid = req.user.uid;
-    const ns = await redis.hGet(`user:${uid}`, 'namespace');
-    if (!ns) return res.status(404).json({ error: 'No active session found' });
-
-    const serviceUrl = `http://agent-service.${ns}.svc.cluster.local:8000`;
+app.use('/agent/run_sse', authMiddleware, (req, res, next) => {
     
     const agentProxy = createProxyMiddleware({
-        target: serviceUrl,
-        changeOrigin: true,
-        pathRewrite: { '^/agent/run_sse': '/run_sse' },
+        target: 'http://agent-service.internal', 
+        changeOrigin: true, 
         
-        router: (req) => {
-            return serviceUrl + "/run_sse";
+        router: async (req) => {
+            const uid = req.user.uid; 
+            const ns = await redis.hGet(`user:${uid}`, 'namespace');
+            
+            if (!ns) {
+                throw new Error(`No active session namespace for user ${uid}`);
+            }
+            
+            return `http://agent-service.${ns}.svc.cluster.local:8000`;
         },
 
+        pathRewrite: { '^/agent/run_sse': '/run_sse' },
+
         onProxyReq: (proxyReq, req, res) => {
-            proxyReq.setHeader('Content-Type', 'application/json');
             proxyReq.setHeader('Accept', 'text/event-stream');
             proxyReq.setHeader('Cache-Control', 'no-cache');
             proxyReq.setHeader('Connection', 'keep-alive');
         },
         
         onProxyRes: (proxyRes, req, res) => {
-            res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+            res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');     
         },
 
-        onError(err, req, res) {
-            console.error(`Agent /run_sse Proxy error for user ${uid}:`, err.message);
+        onError: (err, req, res) => {
+            const uid = req.user?.uid || 'unknown';
+            console.error(`[user-${uid}] Agent /run_sse Proxy error:`, err.message);
             if (!res.headersSent) {
-                res.status(502).json({ error: "Agent Streaming Service Unavailable", details: err.message });
+                res.writeHead(502, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ 
+                    error: "Agent Streaming Service Unavailable", 
+                    details: err.message 
+                }));
             }
         }
     });

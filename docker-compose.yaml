@@ -23,6 +23,8 @@ services:
       ports:
         - "1935:1935" # RTMP Port
         - "8080:80" # Web Interface 
+      env_file:
+        - "./rtmp-server/.env"
       volumes: 
        - ./rtmp-server/credentials.json:/app/credentials.json
       networks:
@@ -49,7 +51,7 @@ services:
       platform: linux/amd64
       restart: unless-stopped
       ports:
-        - "5002:5000" # API Server
+        - "5000:5000" # API Server
         - "5001:5001" # MCP Server
       networks:
         - spectra-net

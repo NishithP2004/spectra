@@ -2,7 +2,7 @@ FROM selenium/standalone-chrome
 
 USER root
 
-EXPOSE 7900 8921 8922
+EXPOSE 7900 8921
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -18,10 +18,6 @@ RUN apt-get update && \
         alsa-utils \
         sox \
         libsox-fmt-all \
-        python3 \
-        python3-pip \
-        python3-tk \
-        python3-dev \
         scrot \
         x11-utils \
         x11-xserver-utils \
@@ -44,7 +40,6 @@ RUN dos2unix /usr/bin/monitor_chrome.sh && \
 
 WORKDIR /app
 RUN mkdir -p /app/playwright-mcp && \
-    mkdir -p /app/pyautogui-mcp && \
     chown -R seluser:seluser /app
 
 COPY playwright-mcp/package*.json /app/playwright-mcp/
@@ -55,11 +50,6 @@ RUN npm ci
 WORKDIR /app
 
 RUN chown -R seluser:seluser /app
-COPY pyautogui-mcp/requirements.txt /app/pyautogui-mcp/
-
-WORKDIR /app/pyautogui-mcp
-
-RUN pip install --no-cache-dir -r requirements.txt --break-system-packages
 COPY . /app
 
 WORKDIR /app/playwright-mcp/

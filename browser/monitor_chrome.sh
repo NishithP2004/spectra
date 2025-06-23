@@ -1,11 +1,9 @@
 #!/bin/bash
 
 NODE_SCRIPT_PATH="/app/playwright-mcp/cli.js"
-PYTHON_SCRIPT_PATH="/app/pyautogui-mcp/server.py"
 
 chrome_pid=""
 node_mcp_server_pid=""
-python_server_pid=""
 current_ws_url=""
 
 cleanup_processes() {
@@ -17,12 +15,6 @@ cleanup_processes() {
         wait "$node_mcp_server_pid" 2>/dev/null || true
     fi
 
-    if [ -n "$python_server_pid" ] && kill -0 "$python_server_pid" 2>/dev/null; then
-        echo "Killing Python Server (PID $python_server_pid)..."
-        kill "$python_server_pid"
-        wait "$python_server_pid" 2>/dev/null || true
-    fi
-
     if [ -n "$chrome_pid" ] && kill -0 "$chrome_pid" 2>/dev/null; then
         echo "Killing Chrome (PID $chrome_pid)..."
         kill "$chrome_pid"
@@ -31,7 +23,6 @@ cleanup_processes() {
 
     chrome_pid=""
     node_mcp_server_pid=""
-    python_server_pid=""
     current_ws_url=""
 }
 
@@ -97,18 +88,6 @@ start_node_process() {
     sleep 1
 }
 
-start_python_process() {
-    if [ -f "$PYTHON_SCRIPT_PATH" ]; then
-        echo "Starting Python server..."
-        python3 "$PYTHON_SCRIPT_PATH" &
-        python_server_pid=$!
-        echo "Python server started with PID $python_server_pid"
-        sleep 1
-    else
-        echo "Python server script not found at $PYTHON_SCRIPT_PATH. Skipping Python server startup."
-    fi
-}
-
 start_pulseaudio() {
     echo "[*] Starting PulseAudio..."
     pulseaudio --start --exit-idle-time=-1
@@ -150,12 +129,6 @@ monitor_processes() {
         if [ -n "$node_mcp_server_pid" ] && ! kill -0 "$node_mcp_server_pid" 2>/dev/null; then
             echo "[-] Node.js MCP Server (PID $node_mcp_server_pid) exited! Restarting..."
             return 1
-        fi
-
-        # Check Python Server
-        if [ -n "$python_server_pid" ] && ! kill -0 "$python_server_pid" 2>/dev/null; then
-            echo "[-] Python Server (PID $python_server_pid) exited! Restarting..."
-            start_python_process
         fi
 
         # Probe for updated CDP URL
@@ -207,7 +180,6 @@ main() {
         fi
 
         start_node_process "$ws_url"
-        # start_python_process
         monitor_processes
 
         echo "Restarting cycle in 2 seconds..."

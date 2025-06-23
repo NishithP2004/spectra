@@ -1,9 +1,0 @@
-fastmcp 
-pyautogui 
-pymsgbox
-Pillow
-pydantic
-asyncio
-PyVirtualDisplay
-pyscreenshot
-keyboard

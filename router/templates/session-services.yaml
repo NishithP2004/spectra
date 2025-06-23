@@ -5,7 +5,7 @@ metadata:
   namespace: user-{{UID}}
 spec:
   selector:
-    app: spectra-session
+    app: spectra-interactive-session
   ports:
     - protocol: TCP
       port: 8000
@@ -18,8 +18,22 @@ metadata:
   namespace: user-{{UID}}
 spec:
   selector:
-    app: spectra-session
+    app: spectra-interactive-session
   ports:
     - protocol: TCP
+      name: vnc
       port: 7900
       targetPort: 7900
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rtmp-service
+  namespace: user-{{UID}}
+spec:
+  selector:
+    app: spectra-rtmp-session
+  ports:
+    - name: rtmp
+      port: 1935
+      targetPort: 1935

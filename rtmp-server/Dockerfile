@@ -15,4 +15,4 @@ WORKDIR /app
 
 COPY package*.json .
 RUN npm ci
-COPY upload_to_gcs.js .
+COPY upload_to_gcs.js redis.js ./

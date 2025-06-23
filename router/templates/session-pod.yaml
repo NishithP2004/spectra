@@ -4,7 +4,7 @@ metadata:
   name: session-pod-{{UID}}
   namespace: user-{{UID}}
   labels:
-    app: spectra-session
+    app: spectra-interactive-session
 spec:
   containers:
     - name: browser
@@ -13,23 +13,13 @@ spec:
       ports:
         - containerPort: 7900
         - containerPort: 8921
-        - containerPort: 8922
       env:
         - name: ENABLE_RECORDING
-          value: "true"
+          value: "{{ENABLE_RECORDING}}"
         - name: RTMP_URL
-          value: rtmp://localhost:1935/stream/browser-session-recording
-
-    - name: rtmp-server
-      image: nishithp/spectra-rtmp-server
-      imagePullPolicy: IfNotPresent
-      ports:
-        - containerPort: 1935
-        - containerPort: 8080
-      volumeMounts:
-        - name: spectra-credentials
-          mountPath: /app/credentials.json
-          subPath: credentials.json
+          value: rtmp://rtmp-server.user-{{UID}}.svc.cluster.local:1935/stream/browser-session-recording
+        - name: SE_VNC_PASSWORD
+          value: "{{VNC_PASSWD}}"
 
     - name: agent
       image: nishithp/spectra-agent
@@ -76,8 +66,3 @@ spec:
       env:
         - name: CYBERCHEF_API_URL
           value: http://localhost:3000/
-
-  volumes:
-    - name: spectra-credentials
-      secret:
-        secretName: spectra-secret

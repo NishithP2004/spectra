@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: rtmp-pod-{{UID}}
+  namespace: user-{{UID}}
+  labels:
+    app: spectra-rtmp-session
+spec:
+  containers:
+    - name: rtmp-server
+      image: nishithp/spectra-rtmp-server
+      imagePullPolicy: IfNotPresent
+      ports:
+        - containerPort: 1935
+        - containerPort: 8080
+      env:
+        - name: USER_UID
+          value: "{{USER_UID}}"
+        - name: SESSION_ID
+          value: "{{SESSION_ID}}"
+      envFrom:
+        - secretRef:
+            name: spectra-env-secret
+      volumeMounts:
+        - name: spectra-credentials
+          mountPath: /app/credentials.json
+          subPath: credentials.json
+
+  volumes:
+    - name: spectra-credentials
+      secret:
+        secretName: spectra-secret

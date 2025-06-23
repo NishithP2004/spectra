@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cleanup-job-{{UID}}
+  namespace: user-{{UID}}
+spec:
+  # Give the job a deadline, e.g., 20 minutes to complete.
+  activeDeadlineSeconds: 1200
+  # Don't retry the job if it fails.
+  backoffLimit: 0
+  template:
+    spec:
+      serviceAccountName: router-sa
+      restartPolicy: Never
+      containers:
+      - name: cleanup-container
+        image: bitnami/kubectl:latest
+        command:
+        - "/bin/sh"
+        - "-c"
+        - |
+          echo "Cleanup job started. Will wait for 15 minutes before deleting namespace."
+          sleep 900 # Wait 15 minutes for any uploads to finish
+          
+          echo "Timer expired. Deleting namespace: user-{{UID}}"
+          kubectl delete namespace user-{{UID}}
+          
+          echo "Namespace deletion initiated."

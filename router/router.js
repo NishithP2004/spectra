@@ -289,10 +289,10 @@ app.use('/agent/run_sse', authMiddleware, (req, res, next) => {
                 throw new Error(`No active session namespace for user ${uid}`);
             }
             
-            return `http://agent-service.${ns}.svc.cluster.local:8000`;
+            return `http://agent-service.${ns}.svc.cluster.local:8000/run_sse`;
         },
 
-        pathRewrite: { '^/agent/run_sse': '/run_sse' },
+        // pathRewrite: { '^/agent/run_sse': '/run_sse' },
 
         onProxyReq: (proxyReq, req, res) => {
             proxyReq.setHeader('Accept', 'text/event-stream');

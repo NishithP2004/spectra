@@ -27,6 +27,8 @@ jobs:
             tag: spectra-cyberchef-server
           - context: ./tools/cyberchef/cyberchef-api-mcp-server
             tag: spectra-cyberchef-mcp
+          - context: ./router
+            tag: spectra-router
 
     steps:
       - name: Checkout source with submodules

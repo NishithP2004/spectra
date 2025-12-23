@@ -4,11 +4,14 @@ metadata:
   name: router-role
 rules:
 - apiGroups: [""]
-  resources: ["namespaces", "secrets", "services", "pods"]
+  resources: ["namespaces", "secrets", "services", "pods", "serviceaccounts"]
   verbs: ["create", "get", "list", "delete", "update", "patch"]
 - apiGroups: ["apps"]
   resources: ["deployments"]
   verbs: ["create", "get", "list", "delete", "update", "patch"]
 - apiGroups: ["batch"]
   resources: ["jobs"]
+  verbs: ["create", "get", "list", "delete"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["clusterrolebindings"]
   verbs: ["create", "get", "list", "delete"]

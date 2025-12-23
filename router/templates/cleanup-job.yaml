@@ -20,7 +20,7 @@ spec:
         - "-c"
         - |
           echo "Cleanup job started. Will wait for 15 minutes before deleting namespace."
-          sleep 900 # Wait 15 minutes for any uploads to finish
+          sleep {{WAIT_TIMEOUT}} # Wait 15 minutes for any uploads to finish
           
           echo "Timer expired. Deleting namespace: user-{{UID}}"
           kubectl delete namespace user-{{UID}}

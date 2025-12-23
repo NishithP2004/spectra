@@ -14,7 +14,7 @@ The platform supports two primary deployment models:
 
 *   **AI-Powered Orchestration:** Utilizes a hierarchy of LLM-based agents (Planner, Clicker, CyberChef, Pentest) for intelligent task decomposition and execution.
 *   **Modular Microservices:** Composed of specialized, containerized services for browsing, pentesting, data manipulation, and session recording.
-*   **Isolated Browser Environments:** Provides remote-controlled Chrome browser sessions accessible via noVNC and automated through Playwright and PyAutoGUI via MCP.
+*   **Isolated Browser Environments:** Provides remote-controlled Chrome browser sessions accessible via noVNC and automated through Playwright via MCP.
 *   **Integrated Pentesting Toolkit:** Offers a suite of Kali Linux tools (Nmap, SQLMap, GoBuster, etc.) accessible to agents via a dedicated MCP interface.
 *   **CyberChef Integration:** Includes a built-in CyberChef instance for versatile data manipulation, exposed to agents for automated use.
 *   **Dynamic K8s Session Management:** A Node.js router can dynamically spin up and tear down complete, isolated user session pods on a Kubernetes cluster.

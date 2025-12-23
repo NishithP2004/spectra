@@ -7,17 +7,14 @@ from contextlib import AsyncExitStack
 from dotenv import load_dotenv
 
 from google.adk.agents.llm_agent import LlmAgent
-from google.adk.agents import Agent
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, SseServerParams
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-from google.adk.artifacts.in_memory_artifact_service import InMemoryArtifactService
 from google.adk.tools.agent_tool import AgentTool
 # from google.adk.models.lite_llm import LiteLlm
-from google.adk.planners import PlanReActPlanner
+from google.adk.planners import PlanReActPlanner, BuiltInPlanner
+from google.genai import types
 
-from .agent_prompts import spectra_prompt, planner_prompt, clicker_prompt, cyberchef_prompt, pentest_prompt
-from .agent_prompts import spectra_description, planner_description, clicker_description, cyberchef_description, pentest_description
+from .prompts import spectra_prompt, planner_prompt, clicker_prompt, cyberchef_prompt, pentest_prompt
+from .prompts import spectra_description, planner_description, clicker_description, cyberchef_description, pentest_description
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -29,7 +26,6 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 # Validate environment variables
 REQUIRED_ENV_VARS = [
     "MCP_TOOLS_URL_BROWSER",
-    # "MCP_TOOLS_URL_PYAUTOGUI",
     "MCP_TOOLS_URL_CYBERCHEF",
     "MCP_TOOLS_URL_PENTOOLS",
 ]
@@ -39,7 +35,6 @@ for var in REQUIRED_ENV_VARS:
 
 MCP_TOOLS_URLS = {
     "browser": os.environ["MCP_TOOLS_URL_BROWSER"],
-    # "pyautogui": os.environ["MCP_TOOLS_URL_PYAUTOGUI"],
     "cyberchef": os.environ["MCP_TOOLS_URL_CYBERCHEF"],
     "pentools": os.environ["MCP_TOOLS_URL_PENTOOLS"],
     "planner": os.environ["MCP_TOOLS_URL_BROWSER"]
@@ -55,8 +50,7 @@ clicker_agent = None
 cyberchef_agent = None
 pentest_agent = None
 
-model = os.environ.get("BASE_MODEL", "gemini-2.5-flash-preview-05-20")
-# vision_model = os.environ.get("VISION_MODEL", "openrouter/qwen/qwen-2.5-vl-72b-instruct:free")
+model = os.environ.get("BASE_MODEL", "gemini-2.5-flash")
 
 def init_agents():
     """Initialize agents and start asynchronous setup."""
@@ -68,7 +62,8 @@ def init_agents():
         description=spectra_description,
         instruction=spectra_prompt,
         tools=[],
-        sub_agents=[]
+        sub_agents=[],
+        output_key="agent_response"
     )
 
     planner_agent = LlmAgent(
@@ -77,6 +72,11 @@ def init_agents():
         description=planner_description,
         instruction=planner_prompt,
         planner=PlanReActPlanner(),
+        # planner=BuiltInPlanner(
+        #     thinking_config=types.ThinkingConfig(
+        #         include_thoughts=False, thinking_budget=0
+        #     )
+        # ),
         tools=[],
         sub_agents=[]
     )
@@ -88,6 +88,11 @@ def init_agents():
         description=clicker_description,
         instruction=clicker_prompt,
         planner=PlanReActPlanner(),
+        # planner=BuiltInPlanner(
+        #     thinking_config=types.ThinkingConfig(
+        #         include_thoughts=False, thinking_budget=0
+        #     )
+        # ),
         tools=[],
     )
 
@@ -97,6 +102,11 @@ def init_agents():
         description=cyberchef_description,
         instruction=cyberchef_prompt,
         planner=PlanReActPlanner(),
+        # planner=BuiltInPlanner(
+        #     thinking_config=types.ThinkingConfig(
+        #         include_thoughts=False, thinking_budget=0
+        #     )
+        # ),
         tools=[],
     )
 
@@ -106,6 +116,11 @@ def init_agents():
         description=pentest_description,
         instruction=pentest_prompt,
         planner=PlanReActPlanner(),
+        # planner=BuiltInPlanner(
+        #     thinking_config=types.ThinkingConfig(
+        #         include_thoughts=False, thinking_budget=0
+        #     )
+        # ),
         tools=[],
     )
 
@@ -186,6 +201,11 @@ async def get_agents_async():
             description=clicker_description,
             instruction=clicker_prompt,
             planner=PlanReActPlanner(),
+            # planner=BuiltInPlanner(
+            #     thinking_config=types.ThinkingConfig(
+            #         include_thoughts=False, thinking_budget=0
+            #     )
+            # ),
             tools=[clicker_tools],
         )
 
@@ -195,6 +215,11 @@ async def get_agents_async():
             description=cyberchef_description,
             instruction=cyberchef_prompt,
             planner=PlanReActPlanner(),
+            # planner=BuiltInPlanner(
+            #     thinking_config=types.ThinkingConfig(
+            #         include_thoughts=False, thinking_budget=0
+            #     )
+            # ),
             tools=[cyberchef_tools],
         )
 
@@ -204,6 +229,11 @@ async def get_agents_async():
             description=pentest_description,
             instruction=pentest_prompt,
             planner=PlanReActPlanner(),
+            # planner=BuiltInPlanner(
+            #     thinking_config=types.ThinkingConfig(
+            #         include_thoughts=False, thinking_budget=0
+            #     )
+            # ),
             tools=[pentest_tools],
         )
 
@@ -213,6 +243,11 @@ async def get_agents_async():
             description=planner_description,
             instruction=planner_prompt,
             planner=PlanReActPlanner(),
+            # planner=BuiltInPlanner(
+            #     thinking_config=types.ThinkingConfig(
+            #         include_thoughts=False, thinking_budget=0
+            #     )
+            # ),
             tools=[AgentTool(agent=clicker_agent), AgentTool(agent=cyberchef_agent), AgentTool(agent=pentest_agent), planner_tools]
         )
 
@@ -231,39 +266,3 @@ async def get_agents_async():
         raise
 
 init_agents()
-
-async def async_main():
-    """Main asynchronous entry point."""
-    session_service = InMemorySessionService()
-    artifacts_service = InMemoryArtifactService()
-
-    session = session_service.create_session(
-        state={}, app_name='spectra_agent', user_id='user_0'
-    )
-    agent = await get_agents_async()
-
-    runner = Runner(
-        app_name='spectra_agent',
-        agent=agent,
-        artifact_service=artifacts_service,
-        session_service=session_service,
-    )
-
-    try:
-        logger.info("Running agent...")
-        events_async = runner.run_async(
-            session_id=session.id, user_id=session.user_id, new_message=content
-        )
-
-        async for event in events_async:
-            logger.info(f"Event received: {event}")
-
-    finally:
-        logger.info("Closing MCP server connection...")
-        logger.info("Cleanup complete.")
-
-if __name__ == '__main__':
-    try:
-        asyncio.run(async_main())
-    except Exception as e:
-        logger.error(f"An error occurred: {e}", exc_info=True)

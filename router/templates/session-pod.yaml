@@ -8,7 +8,7 @@ metadata:
 spec:
   containers:
     - name: browser
-      image: nishithp/spectra-browser
+      image: nishithp/spectra-browser:latest
       imagePullPolicy: IfNotPresent
       ports:
         - containerPort: 7900
@@ -17,12 +17,12 @@ spec:
         - name: ENABLE_RECORDING
           value: "{{ENABLE_RECORDING}}"
         - name: RTMP_URL
-          value: rtmp://rtmp-server.user-{{UID}}.svc.cluster.local:1935/stream/browser-session-recording
+          value: rtmp://rtmp-service.user-{{UID}}.svc.cluster.local:1935/stream/browser-session-recording
         - name: SE_VNC_PASSWORD
           value: "{{VNC_PASSWD}}"
 
     - name: agent
-      image: nishithp/spectra-agent
+      image: nishithp/spectra-agent:latest
       imagePullPolicy: IfNotPresent
       ports:
         - containerPort: 8000
@@ -46,20 +46,20 @@ spec:
             name: spectra-env-secret
 
     - name: pentools
-      image: nishithp/spectra-pentools
+      image: nishithp/spectra-pentools:latest
       imagePullPolicy: IfNotPresent
       ports:
         - containerPort: 5000
         - containerPort: 5001
 
     - name: cyberchef-server
-      image: nishithp/spectra-cyberchef-server
+      image: nishithp/spectra-cyberchef-server:latest
       imagePullPolicy: IfNotPresent
       ports:
         - containerPort: 3000
 
     - name: cyberchef-mcp
-      image: nishithp/spectra-cyberchef-mcp
+      image: nishithp/spectra-cyberchef-mcp:latest
       imagePullPolicy: IfNotPresent
       ports:
         - containerPort: 3001

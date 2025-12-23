@@ -11,6 +11,7 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 import cors from "cors"
 import { randomBytes } from "node:crypto"
 import { v4 as uuidv4 } from "uuid"
+import { Readable } from "node:stream"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -27,7 +28,7 @@ app.use(cors())
 async function authMiddleware(req, res, next) {
     const token = req.headers.authorization?.split(" ")[1]
 
-    if(!token) {
+    if (!token) {
         return res.status(401).json({
             error: "Session token missing"
         })
@@ -37,7 +38,7 @@ async function authMiddleware(req, res, next) {
         const decoded = await admin.auth().verifyIdToken(token)
         req.user = decoded;
         next();
-    } catch(err) {
+    } catch (err) {
         return res.status(401).json({
             error: "Invalid token"
         })
@@ -60,7 +61,7 @@ async function copySecretsToNamespace(kc, targetNamespace) {
             delete secret.metadata.uid;
             secret.metadata.namespace = targetNamespace;
             secret.metadata.name = secretName;
-            
+
             try {
                 await coreApi.createNamespacedSecret({
                     name: secretName,
@@ -86,8 +87,17 @@ function loadYamlTemplates(userId, options) {
     const dir = path.join(__dirname, "templates");
     const files = fs.readdirSync(dir).filter(f => f.endsWith(".yaml") || f.endsWith(".yml"));
 
-    if(options.enable_recording == "false") {
-        files.splice(files.indexOf("rtmp-pod.yaml"), 1)
+    // Exclude cleanup-job.yaml from start-session resources
+    const cleanupIndex = files.indexOf("cleanup-job.yaml");
+    if (cleanupIndex > -1) {
+        files.splice(cleanupIndex, 1);
+    }
+
+    if (options.enable_recording == "false") {
+        const rtmpIndex = files.indexOf("rtmp-pod.yaml");
+        if (rtmpIndex > -1) {
+            files.splice(rtmpIndex, 1)
+        }
     }
 
     const allResources = [];
@@ -95,17 +105,18 @@ function loadYamlTemplates(userId, options) {
     for (const file of files) {
         const content = fs.readFileSync(path.join(dir, file), "utf-8");
         const replaced = content
-                        .replace(/\{\{UID\}\}/g, userId.toLowerCase())
-                        .replace(/\{\{VNC_PASSWD\}\}/g, options.vnc_passwd)
-                        .replace(/\{\{ENABLE_RECORDING\}\}/g, options.enable_recording) 
-                        .replace(/\{\{USER_UID\}\}/g, userId) 
-                        .replace(/\{\{SESSION_ID\}\}/g, options.session_id) // Use global replacement
+            .replace(/\{\{UID\}\}/g, userId.toLowerCase())
+            .replace(/\{\{VNC_PASSWD\}\}/g, options.vnc_passwd)
+            .replace(/\{\{ENABLE_RECORDING\}\}/g, options.enable_recording)
+            .replace(/\{\{USER_UID\}\}/g, userId)
+            .replace(/\{\{SESSION_ID\}\}/g, options.session_id)
+            .replace(/\{\{NAMESPACE_UID\}\}/g, options.namespace_uid)
         const loaded = yaml.loadAll(replaced);
 
         for (const obj of loaded) {
             if (!obj || !obj.kind) {
                 console.error("Invalid Kubernetes object in", file, obj);
-                continue; 
+                continue;
             }
             allResources.push(obj);
         }
@@ -120,11 +131,14 @@ app.post("/start-session", authMiddleware, async (req, res) => {
     const sessionExists = await redis.hGet(`user:${uid}`, "namespace");
     const enable_recording = req.body.enable_recording;
 
-    if(sessionExists) {
+    if (sessionExists) {
+        const session_id = await redis.hGet(`user:${uid}`, "session_id")
+
         return res.send({
             message: "Session exists",
             namespace: ns,
-            vnc_passwd: await redis.hGet(`user:${uid}`, "vnc_passwd")
+            vnc_passwd: await redis.hGet(`user:${uid}`, "vnc_passwd"),
+            session_id: session_id
         })
     }
 
@@ -139,24 +153,35 @@ app.post("/start-session", authMiddleware, async (req, res) => {
     };
 
     try {
-        await k8sApi.create(namespaceManifest);
+        const nsObj = await k8sApi.create(namespaceManifest);
         console.log(`Namespace '${ns}' created successfully.`);
+
+        let namespaceUid = nsObj.body?.metadata?.uid || nsObj.metadata?.uid;
+
+        if (!namespaceUid) {
+            console.log("UID not found in create response, fetching namespace...");
+            const coreApi = kc.makeApiClient(CoreV1Api);
+            const readNs = await coreApi.readNamespace(ns);
+            namespaceUid = readNs.body.metadata.uid;
+        }
 
         await copySecretsToNamespace(kc, ns);
         const vnc_passwd = randomBytes(4).toString("hex")
         const resources = loadYamlTemplates(uid, {
             vnc_passwd: vnc_passwd,
-            enable_recording: enable_recording? "true": "false",
-            session_id: session_id
+            enable_recording: enable_recording ? "true" : "false",
+            session_id: session_id,
+            namespace_uid: namespaceUid
         });
 
-        for(const r of resources) {
+        for (const r of resources) {
             await k8sApi.create(r);
         }
 
         await redis.hSet(`user:${uid}`, "namespace", ns)
         await redis.hSet(`user:${uid}`, "vnc_passwd", vnc_passwd)
         await redis.hSet(`user:${uid}`, "session_id", session_id)
+        await redis.hSet(`user:${uid}`, "enable_recording", enable_recording ? "true" : "false")
 
         res.status(201).send({
             message: "Session started",
@@ -164,7 +189,7 @@ app.post("/start-session", authMiddleware, async (req, res) => {
             vnc_passwd: vnc_passwd,
             session_id: session_id
         })
-    } catch(err) {
+    } catch (err) {
         console.error(err);
         res.status(500).send(({
             error: "Failed to start session"
@@ -178,46 +203,50 @@ app.post("/end-session", authMiddleware, async (req, res) => {
 
     const sessionExists = await redis.hGet(`user:${uid}`, "namespace");
 
-    if(!sessionExists) {
+    if (!sessionExists) {
         return res.status(404).send({ error: "No session found" });
     }
 
     try {
-        const podName = `session-pod-${uid.toLowerCase()}`;
-        console.log(`Deleting interactive session pod: ${podName} in namespace ${ns}`);
-
-        const coreApi = kc.makeApiClient(CoreV1Api);
-        await coreApi.deleteNamespacedPod({
-            name: podName,
-            namespace: ns
-        });
-
-        try {
-            const session_id = await redis.hGet(`user:${uid}`, "session_id")
-            const summary = await getSessionSummary(uid, session_id, ns)
-            await redis.hSet(`user:${uid}`, "summary", summary)
-        } catch(err) {
-            console.error(`[user-${uid}] Error generating agent session summary: ${err.message}`)
-        }
-
-        await redis.hDel(`user:${uid}`, "namespace")
-
-        res.status(200).send({
-            message: "Session termination initiated. Recording will be processed."
-        });
-    } catch(err) {
-        if (err.statusCode === 404) {
-            console.warn(`Pod not found during deletion for user ${uid}, it may have already been terminated.`);
-
-            await redis.hDel(`user:${uid}`, "namespace")
-            return res.status(200).send({ message: "Session already terminated." });
-        }
-
-        console.error(`Failed to delete session pod for user ${uid}:`, err);
-        res.status(500).send({
-            error: "Failed to initiate session termination."
-        });
+        const session_id = await redis.hGet(`user:${uid}`, "session_id")
+        const summary = await getSessionSummary(uid, session_id, ns)
+        await redis.hSet(`user:${uid}`, "summary", summary)
+    } catch (err) {
+        console.error(`[user-${uid}] Error generating agent session summary: ${err.message}`)
     }
+
+    const enable_recording = await redis.hGet(`user:${uid}`, "enable_recording");
+    const waitTimeout = enable_recording == "true" ? 900 : 60;
+
+    try {
+        console.log(`Starting cleanup job for user ${uid}...`);
+
+        // Deleting the session-pod in order to terminate to recording 
+        if (enable_recording === "true") {
+            const core = kc.makeApiClient(CoreV1Api)
+            await core.deleteNamespacedPod({
+                name: `session-pod-${uid.toLowerCase()}`,
+                namespace: ns
+            })
+        }
+
+        const cleanupJobPath = path.join(__dirname, "templates", "cleanup-job.yaml");
+        const cleanupJobContent = fs.readFileSync(cleanupJobPath, "utf-8");
+        const cleanupJobReplaced = cleanupJobContent.replace(/\{\{UID\}\}/g, uid.toLowerCase())
+            .replace(/\{\{WAIT_TIMEOUT\}\}/g, waitTimeout)
+        const cleanupJob = yaml.load(cleanupJobReplaced);
+
+        await k8sApi.create(cleanupJob);
+        console.log(`Cleanup job started for user ${uid}`);
+    } catch (jobErr) {
+        console.error(`Failed to start cleanup job for user ${uid}:`, jobErr);
+    }
+
+    await redis.hDel(`user:${uid}`, "namespace")
+
+    res.status(200).send({
+        message: "Session termination initiated."
+    });
 });
 
 app.delete("/namespace", authMiddleware, async (req, res) => {
@@ -233,8 +262,8 @@ app.delete("/namespace", authMiddleware, async (req, res) => {
         res.status(200).send({
             message: "User namespace deleted."
         })
-    } catch(err) {
-        if(err.statusCode === 404) {
+    } catch (err) {
+        if (err.statusCode === 404) {
             console.warn(`Namespace not found during deletion for user ${uid}, it may have already been removed.`);
             await redis.del(`user:${uid}`)
             res.status(200).send({
@@ -275,93 +304,64 @@ app.use('/vnc', async (req, res, next) => {
     })(req, res, next);
 });
 
-app.use('/agent/run_sse', authMiddleware, (req, res, next) => {
-    
-    const agentProxy = createProxyMiddleware({
-        target: 'http://agent-service.internal', 
-        changeOrigin: true, 
-        
-        router: async (req) => {
-            const uid = req.user.uid; 
-            const ns = await redis.hGet(`user:${uid}`, 'namespace');
-            
-            if (!ns) {
-                throw new Error(`No active session namespace for user ${uid}`);
-            }
-            
-            return `http://agent-service.${ns}.svc.cluster.local:8000/run_sse`;
-        },
+app.use('/agent', authMiddleware, async (req, res) => {
+    try {
+        const uid = req.user.uid;
+        const ns = await redis.hGet(`user:${uid}`, 'namespace');
+        if (!ns) return res.status(404).json({ error: 'No active session found' });
 
-        // pathRewrite: { '^/agent/run_sse': '/run_sse' },
+        const serviceUrl = `http://agent-service.${ns}.svc.cluster.local:8000`;
+        const targetUrl = `${serviceUrl}${req.url}`;
 
-        onProxyReq: (proxyReq, req, res) => {
-            proxyReq.setHeader('Accept', 'text/event-stream');
-            proxyReq.setHeader('Cache-Control', 'no-cache');
-            proxyReq.setHeader('Connection', 'keep-alive');
-        },
-        
-        onProxyRes: (proxyRes, req, res) => {
-            res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');     
-        },
+        console.log(`Proxying ${req.method} ${req.url} to ${targetUrl}`);
 
-        onError: (err, req, res) => {
-            const uid = req.user?.uid || 'unknown';
-            console.error(`[user-${uid}] Agent /run_sse Proxy error:`, err.message);
-            if (!res.headersSent) {
-                res.writeHead(502, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ 
-                    error: "Agent Streaming Service Unavailable", 
-                    details: err.message 
-                }));
-            }
+        const fetchOptions = {
+            method: req.method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'text/event-stream',
+            },
+        };
+
+        if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body) {
+            fetchOptions.body = JSON.stringify(req.body);
         }
-    });
 
-    agentProxy(req, res, next);
-});
+        const proxyRes = await fetch(targetUrl, fetchOptions);
 
-app.use('/agent', authMiddleware, async (req, res, next) => {
-  try {
-    const uid = req.user.uid;
-    const ns = await redis.hGet(`user:${uid}`, 'namespace');
-    if (!ns) return res.status(404).json({ error: 'No active session found' });
+        // Forward status
+        res.status(proxyRes.status);
 
-    const serviceUrl = `http://agent-service.${ns}.svc.cluster.local:8000`;
+        // Forward headers
+        for (const [key, value] of proxyRes.headers) {
+            if (key === 'content-encoding' || key === 'content-length') continue;
+            res.setHeader(key, value);
+        }
 
-    console.log("Proxying Agent request...")
-    createProxyMiddleware({
-      target: serviceUrl,
-      changeOrigin: true,
-      pathRewrite: { '^/agent': '' },
-      onError(err, req, res) {
-        console.error('Proxy error:', err.message);
-        if (!res.headersSent) res.status(502).send('Service Unavailable');
-      }
-    })(req, res, next);
-  } catch (err) {
-    console.error('Redis error:', err);
-    if (!res.headersSent) res.status(500).json({ error: 'Internal error' });
-  }
+        if (proxyRes.body) {
+            Readable.fromWeb(proxyRes.body).pipe(res);
+        } else {
+            res.end();
+        }
+
+    } catch (err) {
+        console.error('Proxy error:', err);
+        if (!res.headersSent) res.status(500).json({ error: 'Proxy request failed' });
+    }
 });
 
 async function getSessionSummary(userId, sessionId, ns) {
     const agentServiceUrl = `http://agent-service.${ns}.svc.cluster.local:8000`
 
     const agentPayload = {
-        appName: "spectra-agent",
-        userId: userId,
-        sessionId: sessionId,
-        newMessage: {
-            role: "user",
-            parts: [{
-                text: "Based on our entire conversation, please provide a concise summary of the session's activities and findings."
-            }]
-        }
+        prompt: "Based on our entire conversation, please provide a concise summary of the session's activities and findings. Only respond with the summary and nothing more.",
+        user_id: userId,
+        session_id: sessionId
     }
 
     console.log(`[user-${userId}] Requesting summary for session ${sessionId}...`)
 
-    const summaryResponse = await fetch(`${agentServiceUrl}/run`, {
+    const summaryResponse = await fetch(`${agentServiceUrl}/summary`, {
         method: "POST",
         headers: {
             'Content-Type': "application/json"
@@ -369,39 +369,28 @@ async function getSessionSummary(userId, sessionId, ns) {
         body: JSON.stringify(agentPayload)
     })
 
-    if(!summaryResponse.ok) {
+    if (!summaryResponse.ok) {
         const err = await summaryResponse.text()
         throw new Error(`Agent returned an error during summarization: ${summaryResponse.status} - ${err}`)
     }
 
-    const events = await summaryResponse.json()
-    const lastModelEvent = events.filter(e => e.content?.role === "model" && e.content?.parts[0]?.text).pop();
+    const responseData = await summaryResponse.json()
 
-    if(!lastModelEvent || !lastModelEvent.content.parts[0].text) {
+    if (!responseData.summary) {
         throw new Error("Could not find a valid summary in the agent's response.")
     }
 
-    return lastModelEvent.content.parts[0].text;
+    return responseData.summary;
 }
 
-async function createAgentSession(userId, sessionId, ns) {
-    const agentServiceUrl = `http://agent-service.${ns}.svc.cluster.local:8000`
-    const targetUrl = `/apps/spectra-agent/users/${userId}/sessions/${sessionId}/`
-
-    console.log(`[user-${userId}] Creating Agent session ${sessionId}...`)
-
-    const response = await fetch(`${agentServiceUrl}/${targetUrl}`, {
-        method: "POST"
+app.get("/", (req, res) => {
+    res.send({
+        message: "The Spectra Router is running!"
     })
-
-    if(!response.ok) {
-        const err = await response.text()
-        throw new Error(`[user-${userId}] Failed to create agent session: ${err}`)
-    }
-}
+})
 
 const PORT = process.env.PORT || 80;
 
-app.listen(PORT, () => {    
+app.listen(PORT, () => {
     console.log(`Router running on port: ${PORT}`)
 })

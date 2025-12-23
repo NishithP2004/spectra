@@ -23,7 +23,7 @@ RUN apt-get update && \
     sudo \
     curl \
     gnupg \
-    ruby ruby-dev build-essential libcurl4-openssl-dev libxml2 libxml2-dev libxslt1-dev zlib1g-dev \
+    ruby ruby-dev build-essential libcurl4-openssl-dev libxml2-dev libxslt1-dev zlib1g-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN mandb && \

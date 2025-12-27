@@ -7,7 +7,8 @@ from contextlib import AsyncExitStack
 from dotenv import load_dotenv
 
 from google.adk.agents.llm_agent import LlmAgent
-from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, SseServerParams
+from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
+from google.adk.tools.mcp_tool.mcp_session_manager import SseServerParams
 from google.adk.tools.agent_tool import AgentTool
 # from google.adk.models.lite_llm import LiteLlm
 from google.adk.planners import PlanReActPlanner, BuiltInPlanner
@@ -128,12 +129,13 @@ def init_agents():
 
     return root_agent, planner_agent, clicker_agent, cyberchef_agent, pentest_agent
 
-async def get_tools_async(url: str, tool_filter: list = None) -> MCPToolset:
+async def get_tools_async(url: str, tool_filter: list = None) -> McpToolset:
     """Fetch tools asynchronously from the MCP server."""
-    tools = MCPToolset(
+    tools = McpToolset(
             connection_params=SseServerParams(
                 url=url, 
-                headers={'Accept': 'text/event-stream'}
+                headers={'Accept': 'text/event-stream'},
+                timeout=120
             ),
             **({'tool_filter': tool_filter} if tool_filter else {})
         ) 
@@ -143,7 +145,7 @@ async def get_tools_async(url: str, tool_filter: list = None) -> MCPToolset:
         for tool in tools:
             logger.info(f"  - Discovered tool: {tool.name}")
     except Exception:
-        logger.debug("MCPToolset is not iterable or no tools to list.")
+        logger.debug("McpToolset is not iterable or no tools to list.")
 
     return tools
 
@@ -168,7 +170,7 @@ async def init_agents_async():
                         tools
                     ]
                 else:
-                    agent.tools = [tools]  # Assign MCPToolset directly
+                    agent.tools = [tools]  # Assign McpToolset directly
             except Exception as e:
                 logger.error(f"Error fetching MCP tools: {e}", exc_info=True)
                 continue

@@ -8,8 +8,8 @@ metadata:
 spec:
   containers:
     - name: rtmp-server
-      image: nishithp/spectra-rtmp-server
-      imagePullPolicy: IfNotPresent
+      image: nishithp/spectra-rtmp-server:latest
+      imagePullPolicy: Always
       ports:
         - containerPort: 1935
         - containerPort: 8080

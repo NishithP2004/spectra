@@ -9,7 +9,7 @@ spec:
   containers:
     - name: browser
       image: nishithp/spectra-browser:latest
-      imagePullPolicy: IfNotPresent
+      imagePullPolicy: Always
       ports:
         - containerPort: 7900
         - containerPort: 8921
@@ -23,7 +23,7 @@ spec:
 
     - name: agent
       image: nishithp/spectra-agent:latest
-      imagePullPolicy: IfNotPresent
+      imagePullPolicy: Always
       ports:
         - containerPort: 8000
       env:
@@ -47,20 +47,20 @@ spec:
 
     - name: pentools
       image: nishithp/spectra-pentools:latest
-      imagePullPolicy: IfNotPresent
+      imagePullPolicy: Always
       ports:
         - containerPort: 5000
         - containerPort: 5001
 
     - name: cyberchef-server
       image: nishithp/spectra-cyberchef-server:latest
-      imagePullPolicy: IfNotPresent
+      imagePullPolicy: Always
       ports:
         - containerPort: 3000
 
     - name: cyberchef-mcp
       image: nishithp/spectra-cyberchef-mcp:latest
-      imagePullPolicy: IfNotPresent
+      imagePullPolicy: Always
       ports:
         - containerPort: 3001
       env:
